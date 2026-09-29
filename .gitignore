@@ -1,0 +1,13 @@
+# Meeting recordings are private and never leave this machine.
+meetings/
+settings.json
+
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+brag/
+
+# Tests stay local; they are not shipped to colleagues.
+tests/
