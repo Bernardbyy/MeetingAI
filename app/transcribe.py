@@ -75,19 +75,40 @@ def transcribe_chunk(path, channel: str, offset: float = 0.0,
     # a small accuracy gain, and VAD skips the silence that dominates the mic
     # channel. Raise beam_size if transcripts read badly.
     segments, info = model.transcribe(
-        str(path), beam_size=1, vad_filter=True, language=language
+        str(path), beam_size=1, vad_filter=True, language=language,
+        word_timestamps=True,
     )
+    lang = getattr(info, "language", None)
     return [
-        {
-            "start": seg.start + offset,
-            "end": seg.end + offset,
-            "text": seg.text.strip(),
-            "channel": channel,
-            "language": getattr(info, "language", None),
-        }
+        {"start": start + offset, "end": end + offset, "text": text,
+         "channel": channel, "language": lang}
         for seg in segments
-        if seg.text.strip()
+        for start, end, text in split_on_pauses(seg)
+        if text
     ]
+
+
+# Each side is transcribed on its own, so while the other side talks this
+# channel is silent, and Whisper can glue the words before and after that
+# silence into one segment stamped with the earlier time. In one meeting a
+# reply said at 8:15 came out as 8:00, ahead of the question it answered.
+# Splitting at pauses gives each piece its real start time.
+PAUSE_SECONDS = 1.0
+
+
+def split_on_pauses(seg) -> list[tuple[float, float, str]]:
+    """(start, end, text) pieces of a segment, cut wherever the speaker paused."""
+    words = getattr(seg, "words", None)
+    if not words:
+        return [(seg.start, seg.end, seg.text.strip())]
+    pieces, current = [], [words[0]]
+    for prev, w in zip(words, words[1:]):
+        if w.start - prev.end > PAUSE_SECONDS:
+            pieces.append(current)
+            current = []
+        current.append(w)
+    pieces.append(current)
+    return [(p[0].start, p[-1].end, "".join(w.word for w in p).strip()) for p in pieces]
 
 
 def hhmmss(seconds: float) -> str:
