@@ -5,7 +5,7 @@ transcribes it and writes the minutes. Everything stays on your machine: the
 only network address it contacts is the local Ollama server. Built for CPU-only
 inference on 16GB of RAM.
 
-Each meeting is a plain folder under `meetings/` with `audio.wav`,
+Each meeting is a plain folder under `meetings/` with `audio.mp3`,
 `transcript.txt` and `minutes.md`. Delete the folder and the meeting is gone.
 
 ## Setup

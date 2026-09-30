@@ -6,7 +6,7 @@ is exactly what the speakers played, which is the reference WebRTC's echo
 canceller needs: it learns how the room changes that sound and subtracts it
 from the mic. With headphones there is no echo and the mic passes through.
 
-Only the audio sent to Whisper is cleaned; audio.wav stays the raw recording.
+Only the audio sent to Whisper is cleaned; audio.mp3 keeps the raw recording.
 """
 
 import wave

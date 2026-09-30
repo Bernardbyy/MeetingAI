@@ -1,9 +1,9 @@
 """Meeting storage: one folder per meeting, no database.
 
-Layout, per SPEC section 5:
+Layout:
 
     meetings/2026-09-02_1430_standup/
-        audio.wav        stereo: L = you, R = them
+        audio.mp3        stereo: L = you, R = them (audio.wav before 2026-09-30)
         transcript.txt
         minutes.md
         meta.json
@@ -126,6 +126,8 @@ def read_meeting(meeting_id: str) -> dict:
     for name, key in (("transcript.txt", "transcript"), ("minutes.md", "minutes")):
         p = d / name
         meta[key] = p.read_text(encoding="utf-8") if p.exists() else ""
+    # Older meetings were saved as WAV.
+    meta["audio"] = next((n for n in ("audio.mp3", "audio.wav") if (d / n).exists()), None)
     return meta
 
 

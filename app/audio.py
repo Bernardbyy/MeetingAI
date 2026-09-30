@@ -8,9 +8,10 @@ Files under a meeting folder:
 
     chunks/mic_000.wav   native rate, as captured
     chunks/sys_000.wav
-    audio.wav            built at Stop: stereo, L = you, R = them
+    audio.mp3            built at Stop: stereo, L = you, R = them
 
-Chunks are written continuously, so a crash costs at most one chunk.
+Chunks are written continuously, so a crash costs at most one chunk. Once
+audio.mp3 is built, session.py deletes chunks/.
 """
 
 import os
@@ -26,6 +27,9 @@ CHUNK_SECONDS = int(os.environ.get("MEETINGAI_CHUNK_SECONDS", 60))
 FRAMES_PER_BUFFER = 1024
 SAMPLE_FORMAT = pyaudio.paInt16
 SAMPLE_WIDTH = 2
+# Speech only needs this much: a 5.5-minute meeting went from 63MB of WAV to
+# 2.6MB and sounded the same when listened back side by side.
+MP3_BITRATE = "64k"
 
 
 def _wasapi(p):
@@ -216,7 +220,7 @@ def build_audio(meeting_dir: Path, mic_chunks: list[Path], sys_chunks: list[Path
     listenable and the file is half the size of true 4-channel audio.
     """
     meeting_dir = Path(meeting_dir)
-    out = meeting_dir / "audio.wav"
+    out = meeting_dir / "audio.mp3"
     if not mic_chunks and not sys_chunks:
         return None
 
@@ -240,7 +244,8 @@ def build_audio(meeting_dir: Path, mic_chunks: list[Path], sys_chunks: list[Path
         # ponytail: one side missing (device failed) -> mono file rather than no file.
         mapped, channels = f"[{parts[0]}]", "1"
 
-    cmd += ["-filter_complex", ";".join(filters), "-map", mapped, "-ac", channels, str(out)]
+    cmd += ["-filter_complex", ";".join(filters), "-map", mapped, "-ac", channels,
+            "-c:a", "libmp3lame", "-b:a", MP3_BITRATE, str(out)]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True)
     finally:

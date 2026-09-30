@@ -11,6 +11,7 @@ Each mic chunk waits for the speaker chunk recorded over the same minute (the
 k-th of each), so echo.py can remove the speakers' sound from it first.
 """
 
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -75,7 +76,7 @@ class Session:
         return devices
 
     def stop(self) -> dict:
-        """Stop capture, drain the queue, write transcript.txt and audio.wav."""
+        """Stop capture, drain the queue, write transcript.txt and audio.mp3."""
         duration = int(time.time() - self.started_at)
         self._set_stage("finishing")
         chunks = self.recorder.stop_capture()
@@ -96,7 +97,12 @@ class Session:
             audio_path = audio.build_audio(self.dir, chunks.get("mic", []),
                                            chunks.get("sys", []))
         except Exception as e:  # ffmpeg missing, killed, or fed a torn chunk
-            self.errors.append(f"could not build audio.wav: {e}")
+            self.errors.append(f"could not build audio.mp3: {e}")
+        # The chunks only exist for transcribe-as-you-go; once audio.mp3 holds
+        # the same sound they are two-thirds of the folder for nothing. Kept if
+        # audio.mp3 failed, because then they are the only copy of the meeting.
+        if audio_path is not None and Path(audio_path).exists():
+            shutil.rmtree(self.dir / "chunks", ignore_errors=True)
 
         self._set_stage("summarizing")
         minutes = ""

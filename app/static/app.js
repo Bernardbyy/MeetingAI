@@ -339,7 +339,7 @@ async function openMeeting(id) {
   files.innerHTML = "";
   if (m.minutes) files.append(el("span", "chip", "minutes.md"));
   if (m.transcript) files.append(el("span", "chip", "transcript.txt"));
-  files.append(el("span", "chip", "audio.wav"));
+  if (m.audio) files.append(el("span", "chip", m.audio));
   files.append(el("span", "path", `meetings/${id}/`));
 
   const failure = (m.capture_errors || []).join(" · ");
