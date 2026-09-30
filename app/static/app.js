@@ -68,6 +68,8 @@ const ICON = {
   disk: ["M5 4h11l3 3v13H5z", "M9 4v5h6V4", "M8 20v-6h8v6"],
   spark: ["M12 4l1.7 4.6L18 10l-4.3 1.4L12 16l-1.7-4.6L6 10l4.3-1.4z", "M18 15.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"],
   doc: ["M7 3h7l4 4v14H7z", "M14 3v4h4", "M10 12h6", "M10 16h6"],
+  pencil: ["M4 20h4L19 9l-4-4L4 16z", "M13.5 6.5l4 4"],
+  download: ["M12 4v11", "M7.5 10.5L12 15l4.5-4.5", "M5 20h14"],
 };
 
 // --- pipeline -------------------------------------------------------------
@@ -325,6 +327,9 @@ async function openMeeting(id) {
 
   viewing = id;
   loaded = { minutes: m.minutes || "", transcript: m.transcript || "", meta: m };
+  // A plain link: the browser does the download, and the server builds the
+  // .docx from the saved minutes.md, so save any edits first.
+  $("minutes-export").href = `/api/meetings/${id}/minutes.docx`;
 
   $("viewer-title").textContent = humanWhen(id);
   $("viewer-meta").textContent = [
@@ -358,7 +363,8 @@ function showTab(which) {
   $("tab-minutes").className = `seg${which === "minutes" ? " on" : ""}`;
   $("tab-transcript").className = `seg${which === "transcript" ? " on" : ""}`;
   $("minutes-edit").hidden = which !== "minutes";
-  $("minutes-edit").textContent = loaded.minutes ? "Edit" : "Write minutes";
+  $("minutes-export").hidden = which !== "minutes" || !loaded.minutes;
+  $("minutes-edit-label").textContent = loaded.minutes ? "Edit" : "Write minutes";
 
   const body = $("viewer-body");
   body.innerHTML = "";
@@ -433,9 +439,14 @@ $("viewer-close").onclick = closeViewer;
 // as the raw Markdown in minutes.md: what you type is exactly what is saved.
 let editing = false;
 
+$("minutes-edit").append(svg(ICON.pencil, 15), el("span", null, "Edit"));
+$("minutes-edit").lastChild.id = "minutes-edit-label";
+$("minutes-export").append(svg(ICON.download, 15), el("span", null, "Export"));
+
 function setEditing(on) {
   editing = on;
   $("minutes-edit").hidden = on;
+  $("minutes-export").hidden = on || !loaded.minutes;  // would export the unsaved version
   $("minutes-cancel").hidden = !on;
   $("minutes-save").hidden = !on;
 }
@@ -452,7 +463,7 @@ function leaveEditing() {
 $("minutes-edit").onclick = () => {
   const body = $("viewer-body");
   body.innerHTML = "";
-  body.className = "glass viewer-body";
+  body.className = "glass viewer-body editing";
   const box = el("textarea", "minutes-editor");
   box.id = "minutes-text";
   box.value = loaded.minutes;

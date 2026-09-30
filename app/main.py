@@ -6,10 +6,10 @@ Phase 3: capture and transcription run together; Stop only waits for the tail.
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import audio, session, settings, storage, summarize, transcribe
+from . import audio, export, session, settings, storage, summarize, transcribe
 
 STATIC = Path(__file__).parent / "static"
 
@@ -169,6 +169,35 @@ def save_minutes(meeting_id: str, body: dict):
     except ValueError:
         raise HTTPException(400, "bad meeting id")
     return {"saved": meeting_id}
+
+
+@app.get("/api/meetings/{meeting_id}/minutes.docx")
+def export_minutes(meeting_id: str):
+    try:
+        m = storage.read_meeting(meeting_id)
+    except FileNotFoundError:
+        raise HTTPException(404, "no such meeting")
+    except ValueError:
+        raise HTTPException(400, "bad meeting id")
+    if not m["minutes"].strip():
+        raise HTTPException(404, "this meeting has no minutes")
+
+    # meeting_id is 2026-09-30_1138[_slug]: show it as a date and time.
+    day, hhmm = meeting_id.split("_")[:2]
+    when = f"{day} {hhmm[:2]}:{hhmm[2:]}"
+    secs = m.get("duration_sec")
+    subtitle = " · ".join(filter(None, [
+        when,
+        f"{round(secs / 60)} min" if secs else None,
+        "reviewed" if m.get("minutes_edited_at") else "draft, not yet reviewed",
+    ]))
+    data = export.minutes_docx(m["minutes"], "Meeting minutes", subtitle)
+    return Response(
+        data,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={"Content-Disposition":
+                 f'attachment; filename="Meeting minutes {day} {hhmm}.docx"'},
+    )
 
 
 @app.delete("/api/meetings/{meeting_id}")

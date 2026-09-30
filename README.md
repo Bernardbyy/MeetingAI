@@ -71,6 +71,7 @@ app/
   transcribe.py  faster-whisper, chunk stitching, You/Them tagging
   summarize.py   Ollama prompt and minutes
   storage.py     meeting folders
+  export.py      minutes as a Word document
   settings.py    settings.json
   static/        the UI: index.html, app.js, style.css, favicon.ico
 pyproject.toml   dependencies

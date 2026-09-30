@@ -101,12 +101,18 @@
         <button id="tab-minutes" class="seg on" role="tab">Minutes</button>
         <button id="tab-transcript" class="seg" role="tab">Transcript</button>
       </div>
-      <button id="minutes-edit" class="btn btn-quiet">Edit</button>
-      <button id="minutes-cancel" class="btn btn-quiet" hidden>Cancel</button>
-      <button id="minutes-save" class="btn btn-primary" hidden>Save</button>
     </div>
     <div id="viewer-banner" class="banner" hidden></div>
-    <div id="viewer-body" class="glass viewer-body"></div>
+    <div class="viewer-card">
+      <!-- Actions sit on the minutes they act on, not in the page header. -->
+      <div class="viewer-actions">
+        <a id="minutes-export" class="tool" download hidden></a>
+        <button id="minutes-edit" class="tool"></button>
+        <button id="minutes-cancel" class="tool" hidden>Cancel</button>
+        <button id="minutes-save" class="tool tool-primary" hidden>Save</button>
+      </div>
+      <div id="viewer-body" class="glass viewer-body"></div>
+    </div>
     <div id="viewer-files" class="chips"></div>
   </section>
 </main>
