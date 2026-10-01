@@ -7,7 +7,9 @@ set "DIR=%USERPROFILE%\MeetingAI"
 rem Run from inside a clone: use that clone instead of making a second one.
 if exist "%~dp0..\.git" set "DIR=%~dp0.."
 set "REPO=https://github.com/Bernardbyy/MeetingAI"
-set WG=winget install -e --silent --accept-package-agreements --accept-source-agreements --id
+rem --source winget: the Microsoft Store source is often broken or blocked on work
+rem laptops, and winget then refuses to install even what it found elsewhere.
+set WG=winget install -e --source winget --silent --accept-package-agreements --accept-source-agreements --id
 
 where winget >nul 2>&1 || (echo winget not found. Update "App Installer" from the Microsoft Store. & goto :error)
 
@@ -27,7 +29,7 @@ where ffmpeg >nul 2>&1 || %WG% Gyan.FFmpeg
 where ollama >nul 2>&1 || %WG% Ollama.Ollama
 rem An Ollama installed long ago cannot run the model or switch thinking off.
 rem Quietly bring it up to date; nothing happens if it already is.
-winget upgrade -e --silent --accept-package-agreements --accept-source-agreements --id Ollama.Ollama >nul 2>&1
+winget upgrade -e --source winget --silent --accept-package-agreements --accept-source-agreements --id Ollama.Ollama >nul 2>&1
 rem New installs are not on this window's PATH yet; reread it from the registry.
 call :refresh_path
 for %%t in (git uv ffmpeg ollama) do where %%t >nul 2>&1 || (echo %%t did not install. & goto :error)
