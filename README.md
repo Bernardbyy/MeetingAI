@@ -12,7 +12,11 @@ Each meeting is a plain folder under `meetings/` with `audio.mp3`,
 
 You need Windows 10 or 11, about 9GB of free disk space, and internet during
 setup (afterwards MeetingAI runs offline). Windows may ask once for permission
-to install Git. Paste this into PowerShell:
+to install Git.
+
+1. Open **PowerShell**: press the Windows key, type `PowerShell`, press Enter.
+2. Copy the line below (the copy button is at its right end), paste it into
+   PowerShell with a right-click, and press Enter:
 
 ```powershell
 irm https://raw.githubusercontent.com/Bernardbyy/MeetingAI/main/Batch/install.bat -OutFile $env:TEMP\meetingai-install.bat; & $env:TEMP\meetingai-install.bat
@@ -23,13 +27,35 @@ It installs everything MeetingAI needs, downloads the models, puts the app in
 total, mostly Ollama, PyTorch and the models. If a step fails, fix it and run the line
 again; finished steps are skipped.
 
-After that, find **MeetingAI** in the Start menu.
+After that, find **MeetingAI** in the Start menu. To close it, use the
+power button at the top right of the page.
+
+### What gets installed
+
+| What | Why | Size |
+|---|---|---|
+| Git | Downloads MeetingAI and its updates | 62MB |
+| uv | Installs the exact Python and packages MeetingAI was tested with | 17MB |
+| Microsoft Visual C++ runtime | Standard Windows files that uv and the Python packages need; most PCs already have it | 18MB |
+| FFmpeg | Joins and compresses the recordings into MP3 | 245MB |
+| Ollama | Runs the AI model that writes the minutes, on your machine | 1.5GB |
+| Python 3.11 and packages | The app itself, speech recognition, speaker identification (PyTorch, pyannote), echo removal, Word export | 1.2GB |
+| `qwen3.5:0.8b` | The model that writes the minutes | 1GB |
+| Whisper `small` | The model that turns speech into text | 460MB |
+| Speaker model | Tells the remote voices apart | 30MB |
+
+The tools come from winget, Windows' own installer; the models are downloaded
+once and then used offline.
 
 ## Updates
 
-Close MeetingAI, then run `Batch\update.bat`. It lists what changed and asks
-before installing anything. Starting the app never updates on its own, and
+In MeetingAI, open **Settings** and press **Check for updates**. If there is
+anything new, it lists the changes; **Update and restart** installs them and
+opens MeetingAI again by itself. Nothing updates without you pressing it, and
 updates never touch your meetings or settings.
+
+If MeetingAI will not start, update from outside it instead: run
+`Batch\update.bat` in `%USERPROFILE%\MeetingAI`.
 
 ## If something goes wrong
 
@@ -38,7 +64,7 @@ updates never touch your meetings or settings.
 | Setup stops partway | Fix what it says and run the setup line again; finished steps are skipped. |
 | "winget not found" | Update **App Installer** from the Microsoft Store. |
 | No minutes: "Could not reach Ollama" | Start **Ollama** from the Start menu, then record again. |
-| "Speakers" says identification failed | Run `Batch\update.bat`; it fetches anything missing. |
+| "Speakers" says identification failed | Run `Batch\after-update.bat`; it fetches anything missing. |
 | The page says "can't reach this page" | Wait a few seconds and refresh; the app may still be starting. |
 | Buttons do nothing after an update | Close MeetingAI, start it again, then press Ctrl+F5 in the browser. |
 
@@ -92,9 +118,11 @@ by pyannoteAI, redistributed unmodified under
 
 ```
 Batch/
-  install.bat    one-shot setup: tools, code, models
-  run.bat        start the app
-  update.bat     update to the latest version
+  install.bat       one-shot setup: tools, code, models
+  run.bat           start the app
+  update.bat        update from a terminal, when the app will not start
+  after-update.bat  packages and models a new version needs; run by every update
+  apply-update.bat  the in-app update: close, update, restart
 app/
   main.py        FastAPI routes
   session.py     one recording: capture, transcribe-as-you-go, summarize
@@ -106,6 +134,7 @@ app/
   storage.py     meeting folders
   export.py      minutes as a Word document
   settings.py    settings.json
+  updates.py     check for updates and update from the Settings panel
   static/        the UI: index.html, app.js, style.css, favicon.ico
 pyproject.toml   dependencies
 uv.lock          exact package versions
