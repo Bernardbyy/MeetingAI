@@ -33,9 +33,11 @@ choice /c YN /m "Install these updates"
 if errorlevel 2 goto :eof
 
 git pull --ff-only --quiet || goto :error
-uv sync || goto :installing
-rem Installs that predate speaker identification fetch its model here; a no-op after.
-uv run python -m app.speakers --download || goto :installing
+rem Do not change anything above this line. cmd keeps reading this file by
+rem position while git pull rewrites it, so only lines after the pull may differ
+rem between versions. Every step after the pull lives in after-update.bat, which
+rem comes fresh from the new version: add new update steps there.
+call "%~dp0after-update.bat" || goto :installing
 echo.
 echo Updated. If MeetingAI is open, close its window and start it again.
 pause
@@ -49,6 +51,6 @@ goto :eof
 
 :installing
 echo.
-echo The new version downloaded but its packages did not install. Check your
-echo internet connection and run this again; it carries on from here.
+echo The new version downloaded but did not finish installing. Check your
+echo internet connection, then run Batchfter-update.bat to finish.
 pause

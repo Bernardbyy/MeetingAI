@@ -38,12 +38,14 @@ echo [2/6] Getting the code...
 if exist "%DIR%\.git" (echo Already at %DIR%) else (git clone --quiet %REPO% "%DIR%" || goto :error)
 cd /d "%DIR%"
 
-echo [3/6] Downloading the summarization model, 1GB the first time...
-ollama list >nul 2>&1 || (start "" /min ollama serve & timeout /t 5 >nul)
-ollama pull qwen3.5:0.8b || goto :error
-
-echo [4/6] Installing Python and packages...
+echo [3/6] Installing Python and packages...
 uv sync || goto :error
+
+echo [4/6] Downloading the summarization model, about 1GB the first time...
+rem Whichever model the code defaults to, so setup and updates never disagree.
+for /f %%m in ('uv run python -c "from app import summarize; print(summarize.DEFAULT_MODEL)"') do set MODEL=%%m
+ollama list >nul 2>&1 || (start "" /min ollama serve & timeout /t 5 >nul)
+ollama pull %MODEL% || goto :error
 
 echo [5/6] Downloading the speaker model, 30MB the first time...
 uv run python -m app.speakers --download || goto :error
