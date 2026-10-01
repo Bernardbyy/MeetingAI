@@ -19,7 +19,7 @@ irm https://raw.githubusercontent.com/Bernardbyy/MeetingAI/main/Batch/install.ba
 ```
 
 It installs everything MeetingAI needs, downloads the models, puts the app in
-`%USERPROFILE%\MeetingAI` and opens it. Allow some time: it is about 8.5GB in
+`%USERPROFILE%\MeetingAI` and opens it. Allow some time: it is about 6GB in
 total, mostly Ollama, PyTorch and the models. If a step fails, fix it and run the line
 again; finished steps are skipped.
 
@@ -48,7 +48,7 @@ Choose the transcription model, summarization model and audio devices in the
 app's Settings panel. Changes apply from the next recording.
 
 Both model lists show only what is on your machine. Setup installs Whisper
-`small` and `qwen3.5:4b`.
+`small` and `qwen3.5:0.8b`.
 
 **Transcription (Whisper).** Bigger is more accurate and slower. To add another
 size, run this in `%USERPROFILE%\MeetingAI`:
@@ -66,8 +66,10 @@ uv run python -c "from app import transcribe; transcribe.get_model('medium')"
 | `large-v3` | slower than realtime | 2h+ |
 
 **Summarization (Ollama).** Add a model with `ollama pull <name>` and it appears
-in the list. Expect several minutes of summarizing after Stop; a smaller model
-is faster but writes weaker minutes.
+in the list. The default, `qwen3.5:0.8b`, is small and fast but can get owners
+or details wrong, so check the minutes before sending them. With RAM to spare
+(about 4GB while it runs), `ollama pull qwen3.5:4b` writes noticeably better
+minutes, more slowly.
 
 ## Speaker identification
 

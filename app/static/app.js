@@ -543,7 +543,7 @@ $("settings-open").onclick = async () => {
   const llms = d.llm_models.length ? d.llm_models : [s.llm_model];
   fill($("s-llm"), llms.map((m) => ({ value: m, label: m })), s.llm_model);
   $("llm-hint").textContent = d.llm_models.length
-    ? "Very small models lose the minutes format — they echo the template instead of following it."
+    ? "Bigger models write more accurate minutes but are slower and use more memory."
     : "Ollama is not reachable, so the installed models could not be listed.";
 
   const devices = (list) => [{ value: "", label: "System default" }]

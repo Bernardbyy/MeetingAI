@@ -17,8 +17,11 @@ import urllib.error
 import urllib.request
 
 OLLAMA = os.environ.get("MEETINGAI_OLLAMA", "http://127.0.0.1:11434")
-# Not qwen3:4b: that tag is now a thinking-only build that ignores think=false.
-DEFAULT_MODEL = os.environ.get("MEETINGAI_LLM", "qwen3.5:4b")
+# Small enough for any 16GB laptop: about 1GB, and roughly 5x faster than
+# qwen3.5:4b, which writes more reliable minutes (owners, details) for those who
+# can spare ~4GB of RAM -- switchable in Settings. Not qwen3:4b: that tag is a
+# thinking-only build that ignores think=false.
+DEFAULT_MODEL = os.environ.get("MEETINGAI_LLM", "qwen3.5:0.8b")
 
 # CPU generation is slow; a long transcript can legitimately take many minutes.
 TIMEOUT = int(os.environ.get("MEETINGAI_LLM_TIMEOUT", 1800))
