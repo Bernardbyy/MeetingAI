@@ -62,7 +62,8 @@ def status():
     cfg = settings.load()
     idle["models"] = {"whisper": cfg["whisper_model"], "llm": cfg["llm_model"]}
     try:
-        found = audio.list_devices()
+        # Polled every second while idle: reuse a recent list, never re-scan each time.
+        found = audio.list_devices(max_age=30)
         by_index = {d["index"]: d["name"] for d in found["mics"] + found["loopbacks"]}
         idle["devices"] = {
             "mic": by_index.get(cfg["mic_index"] if cfg["mic_index"] is not None

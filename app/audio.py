@@ -18,6 +18,7 @@ import os
 import queue
 import subprocess
 import threading
+import time
 import wave
 from pathlib import Path
 
@@ -31,13 +32,35 @@ SAMPLE_WIDTH = 2
 # 2.6MB and sounded the same when listened back side by side.
 MP3_BITRATE = "64k"
 
+# PortAudio keeps one global state and is not thread-safe. The app's request
+# threads used to start and stop it at the same moment (the idle status check
+# did so every second), corrupting it until its own assert killed the whole
+# app: "Assertion failed: hostapi->info.defaultInputDevice < ... pa_front.c".
+# Every start, stop, stream open/close and device listing holds this lock.
+_PA = threading.Lock()
+
+# Device lists change rarely; the status check can reuse one this old.
+_listed: tuple[float, dict | None] = (0.0, None)
+
 
 def _wasapi(p):
     return p.get_host_api_info_by_type(pyaudio.paWASAPI)
 
 
-def list_devices() -> dict:
-    """Selectable capture devices, for the settings panel."""
+def list_devices(max_age: float = 0) -> dict:
+    """Selectable capture devices, for the settings panel. With max_age, a
+    list at most that many seconds old is reused instead of asking again."""
+    global _listed
+    with _PA:
+        at, cached = _listed
+        if cached is not None and time.monotonic() - at < max_age:
+            return dict(cached)
+        found = _list_devices()
+        _listed = (time.monotonic(), found)
+        return dict(found)
+
+
+def _list_devices() -> dict:
     p = pyaudio.PyAudio()
     try:
         w = _wasapi(p)
@@ -102,14 +125,15 @@ class _StreamWriter(threading.Thread):
     def run(self):
         stream = writer = None
         try:
-            stream = self._p.open(
-                format=SAMPLE_FORMAT,
-                channels=self.channels,
-                rate=self.rate,
-                input=True,
-                input_device_index=self._device["index"],
-                frames_per_buffer=FRAMES_PER_BUFFER,
-            )
+            with _PA:
+                stream = self._p.open(
+                    format=SAMPLE_FORMAT,
+                    channels=self.channels,
+                    rate=self.rate,
+                    input=True,
+                    input_device_index=self._device["index"],
+                    frames_per_buffer=FRAMES_PER_BUFFER,
+                )
             writer = self._open_chunk()
             written = 0
             while not self._stopping.is_set():
@@ -131,8 +155,9 @@ class _StreamWriter(threading.Thread):
                 except Exception:
                     pass
             if stream is not None:
-                stream.stop_stream()
-                stream.close()
+                with _PA:
+                    stream.stop_stream()
+                    stream.close()
 
     def stop(self):
         self._stopping.set()
@@ -165,8 +190,14 @@ class Recorder:
         return mic, loop
 
     def start(self):
-        self._p = pyaudio.PyAudio()
-        mic, loop = self._resolve()
+        with _PA:
+            self._p = pyaudio.PyAudio()
+            try:
+                mic, loop = self._resolve()
+            except Exception:
+                self._p.terminate()
+                self._p = None
+                raise
         for device, label in ((mic, "mic"), (loop, "sys")):
             w = _StreamWriter(self._p, device, label, self.chunks_dir,
                               self._chunk_seconds, self._on_chunk, self._on_error)
@@ -197,7 +228,8 @@ class Recorder:
         for w in self._writers:
             w.join(timeout=5)
         if self._p is not None:
-            self._p.terminate()
+            with _PA:
+                self._p.terminate()
             self._p = None
         by_label = {w.label: [p for p in w.chunks if p.exists() and p.stat().st_size > 44]
                     for w in self._writers}
