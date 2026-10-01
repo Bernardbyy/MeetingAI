@@ -57,45 +57,24 @@ updates never touch your meetings or settings.
 If MeetingAI will not start, update from outside it instead: run
 `Batch\update.bat` in `%USERPROFILE%\MeetingAI`.
 
-## If something goes wrong
-
-| What you see | What to do |
-|---|---|
-| Setup stops partway | Fix what it says and run the setup line again; finished steps are skipped. |
-| "winget not found" | Update **App Installer** from the Microsoft Store. |
-| No minutes: "Could not reach Ollama" | Start **Ollama** from the Start menu, then record again. |
-| "Speakers" says identification failed | Run `Batch\after-update.bat`; it fetches anything missing. |
-| The page says "can't reach this page" | Wait a few seconds and refresh; the app may still be starting. |
-| Buttons do nothing after an update | Close MeetingAI, start it again, then press Ctrl+F5 in the browser. |
-
 ## Settings
 
-Choose the transcription model, summarization model and audio devices in the
-app's Settings panel. Changes apply from the next recording.
+### Adding a language model
 
-Both model lists show only what is on your machine. Setup installs Whisper
-`small` and `qwen3.5:0.8b`.
+The minutes are written by a small language model running in Ollama. Setup
+installs `qwen3.5:0.8b`. To use another one, for example the larger and more
+accurate `qwen3.5:4b` (it needs about 4GB of free RAM while it runs):
 
-**Transcription (Whisper).** Bigger is more accurate and slower. To add another
-size, run this in `%USERPROFILE%\MeetingAI`:
+1. Open PowerShell and download it:
 
-```powershell
-uv run python -c "from app import transcribe; transcribe.get_model('medium')"
-```
+   ```powershell
+   ollama pull qwen3.5:4b
+   ```
 
-| Whisper model | Speed on CPU | 2h meeting |
-|---|---|---|
-| `tiny` | ~15-20× realtime | ~7 min |
-| `base` | ~10× | ~12 min |
-| `small` (default) | ~4-5× | ~25-30 min |
-| `medium` | ~1.5× | ~80 min |
-| `large-v3` | slower than realtime | 2h+ |
+2. In MeetingAI, open **Settings**, choose it under **Summarization model**,
+   and press **Save**. It is used from the next recording.
 
-**Summarization (Ollama).** Add a model with `ollama pull <name>` and it appears
-in the list. The default, `qwen3.5:0.8b`, is small and fast but can get owners
-or details wrong, so check the minutes before sending them. With RAM to spare
-(about 4GB while it runs), `ollama pull qwen3.5:4b` writes noticeably better
-minutes, more slowly.
+More models are listed at [ollama.com/library](https://ollama.com/library).
 
 ## Speaker identification
 
