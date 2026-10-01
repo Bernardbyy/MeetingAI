@@ -3,17 +3,28 @@
 Phase 3: capture and transcription run together; Stop only waits for the tail.
 """
 
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import audio, export, session, settings, storage, summarize, transcribe
+from . import audio, export, session, settings, speakers, storage, summarize, transcribe
 
 STATIC = Path(__file__).parent / "static"
 
-app = FastAPI(title="MeetingAI")
+settings.apply()
+
+
+@asynccontextmanager
+async def lifespan(_app):
+    # Speaker jobs the app was in the middle of when it last closed.
+    speakers.resume()
+    yield
+
+
+app = FastAPI(title="MeetingAI", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
@@ -25,7 +36,7 @@ async def always_revalidate(request, call_next):
     response = await call_next(request)
     response.headers["Cache-Control"] = "no-cache"
     return response
-settings.apply()
+
 
 # ponytail: single user, one meeting at a time, so one module-level slot is
 # the whole session state.
@@ -110,6 +121,9 @@ def stop():
         capture_errors=result["errors"],
     )
     result["transcript_lines"] = len(result.pop("transcript").splitlines())
+    # The minutes are out; now tell the remote voices apart, in the background.
+    if result["audio"] and any(seg["channel"] == "sys" for seg in s.segments):
+        speakers.enqueue(s.meeting_id)
     return result
 
 
@@ -144,14 +158,69 @@ def meetings():
     return storage.list_meetings()
 
 
-@app.get("/api/meetings/{meeting_id}")
-def meeting(meeting_id: str):
+def _read(meeting_id: str) -> dict:
     try:
-        return storage.read_meeting(meeting_id)
+        m = storage.read_meeting(meeting_id)
     except FileNotFoundError:
         raise HTTPException(404, "no such meeting")
     except ValueError:
         raise HTTPException(400, "bad meeting id")
+    m["speakers"] = speakers.summary(meeting_id) if m.get("speakers_state") == "done" else []
+    return m
+
+
+def _not_busy(meeting_id: str):
+    if CURRENT is not None and CURRENT.meeting_id == meeting_id:
+        raise HTTPException(409, "that meeting is still being processed")
+
+
+@app.get("/api/meetings/{meeting_id}")
+def meeting(meeting_id: str):
+    return _read(meeting_id)
+
+
+@app.put("/api/meetings/{meeting_id}/speakers")
+def name_speakers(meeting_id: str, body: dict):
+    m = _read(meeting_id)
+    if m.get("speakers_state") != "done":
+        raise HTTPException(409, "speakers have not been identified yet")
+    names = body.get("names")
+    if not isinstance(names, dict):
+        raise HTTPException(400, "names must be an object")
+    try:
+        speakers.set_names(meeting_id, names)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return _read(meeting_id)
+
+
+@app.get("/api/meetings/{meeting_id}/speakers/{label}/sample")
+def speaker_sample(meeting_id: str, label: str):
+    _read(meeting_id)
+    try:
+        return Response(speakers.sample(meeting_id, label), media_type="audio/mpeg")
+    except KeyError:
+        raise HTTPException(404, "no such speaker")
+    except (RuntimeError, StopIteration):
+        raise HTTPException(500, "could not cut a sample from the meeting audio")
+
+
+@app.post("/api/meetings/{meeting_id}/speakers/identify")
+def identify_speakers(meeting_id: str):
+    _not_busy(meeting_id)
+    if _read(meeting_id).get("speakers_state") in ("queued", "running"):
+        raise HTTPException(409, "already identifying speakers")
+    speakers.enqueue(meeting_id)
+    return _read(meeting_id)
+
+
+@app.post("/api/meetings/{meeting_id}/minutes/update")
+def update_minutes(meeting_id: str):
+    _not_busy(meeting_id)
+    if _read(meeting_id).get("minutes_state") == "updating":
+        raise HTTPException(409, "the minutes are already being updated")
+    speakers.update_minutes(meeting_id, settings.load()["llm_model"])
+    return _read(meeting_id)
 
 
 @app.put("/api/meetings/{meeting_id}/minutes")
@@ -159,6 +228,8 @@ def save_minutes(meeting_id: str, body: dict):
     # While a meeting is still being processed, Stop would overwrite the edit.
     if CURRENT is not None and CURRENT.meeting_id == meeting_id:
         raise HTTPException(409, "that meeting is still being processed")
+    if _read(meeting_id).get("minutes_state") == "updating":
+        raise HTTPException(409, "the minutes are being updated; try again when that finishes")
     text = body.get("minutes")
     if not isinstance(text, str):
         raise HTTPException(400, "minutes must be text")

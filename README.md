@@ -17,8 +17,8 @@ irm https://raw.githubusercontent.com/Bernardbyy/MeetingAI/main/Batch/install.ba
 ```
 
 It installs everything MeetingAI needs, downloads the models, puts the app in
-`%USERPROFILE%\MeetingAI` and opens it. Allow some time: it is about 7.5GB in
-total, mostly Ollama and the models. If a step fails, fix it and run the line
+`%USERPROFILE%\MeetingAI` and opens it. Allow some time: it is about 8.5GB in
+total, mostly Ollama, PyTorch and the models. If a step fails, fix it and run the line
 again; finished steps are skipped.
 
 After that, find **MeetingAI** in the Start menu.
@@ -56,6 +56,23 @@ uv run python -c "from app import transcribe; transcribe.get_model('medium')"
 in the list. Expect several minutes of summarizing after Stop; a smaller model
 is faster but writes weaker minutes.
 
+## Speaker identification
+
+After the minutes are written, MeetingAI works out which remote voice said what
+(Speaker 1, Speaker 2, ...), in the background. It takes about as long as the
+meeting, so the minutes never wait for it. When it is done, open the meeting,
+press **Speakers**, play each voice, type who it is, and choose **Save & update
+minutes** to have them written again with the names.
+
+Setup downloads the model it needs (30MB) from this repository's
+[release](https://github.com/Bernardbyy/MeetingAI/releases/tag/speaker-model-v1),
+so no extra account is needed. After that it runs offline, with pyannote's usage
+reporting switched off.
+
+The model is [pyannote speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)
+by pyannoteAI, redistributed unmodified under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+
 ## Project Structure
 
 ```
@@ -69,6 +86,7 @@ app/
   audio.py       WASAPI dual capture, chunk writer, ffmpeg mixdown
   echo.py        removes the speakers' echo from the mic before transcription
   transcribe.py  faster-whisper, chunk stitching, You/Them tagging
+  speakers.py    tells the remote voices apart after the meeting (pyannote)
   summarize.py   Ollama prompt and minutes
   storage.py     meeting folders
   export.py      minutes as a Word document

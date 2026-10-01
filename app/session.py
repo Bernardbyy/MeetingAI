@@ -11,6 +11,7 @@ Each mic chunk waits for the speaker chunk recorded over the same minute (the
 k-th of each), so echo.py can remove the speakers' sound from it first.
 """
 
+import json
 import shutil
 import threading
 import time
@@ -88,6 +89,8 @@ class Session:
 
         text = transcribe.format_transcript(self.segments)
         (self.dir / "transcript.txt").write_text(text, encoding="utf-8")
+        # Line timings, so speakers.py can match each line to a voice later.
+        (self.dir / "segments.json").write_text(json.dumps(self.segments), encoding="utf-8")
 
         # Everything from here down is best-effort: the transcript is already on
         # disk, so no later failure may take the meeting with it.

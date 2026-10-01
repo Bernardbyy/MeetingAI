@@ -116,13 +116,20 @@ def hhmmss(seconds: float) -> str:
     return f"{s // 3600:02d}:{s % 3600 // 60:02d}:{s % 60:02d}"
 
 
-def format_transcript(segments: list[dict]) -> str:
-    """Interleave both channels by time. Stable: on a tie, you come first."""
+def format_transcript(segments: list[dict], names: dict | None = None) -> str:
+    """Interleave both channels by time. Stable: on a tie, you come first.
+
+    A line reads as its voice ("Speaker 2", once speakers.py has told the Them
+    voices apart, else You / Them), shown by the name a person gave it if any.
+    """
+    names = names or {}
     ordered = sorted(segments, key=lambda s: (s["start"], s["channel"] != "mic"))
-    return "\n".join(
-        f"[{hhmmss(s['start'])}] {SPEAKER.get(s['channel'], s['channel'])}: {s['text']}"
-        for s in ordered
-    )
+
+    def who(s):
+        label = s.get("speaker") or SPEAKER.get(s["channel"], s["channel"])
+        return names.get(label, label)
+
+    return "\n".join(f"[{hhmmss(s['start'])}] {who(s)}: {s['text']}" for s in ordered)
 
 
 def transcribe_meeting(meeting_dir, model_name: str = DEFAULT_MODEL,

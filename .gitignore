@@ -11,3 +11,9 @@ brag/
 
 # Tests stay local; they are not shipped to colleagues.
 tests/
+
+# Personal notes and backlog.
+notes/
+
+# Speaker model, downloaded by setup from the GitHub release.
+models/

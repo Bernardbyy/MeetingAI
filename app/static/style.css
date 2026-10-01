@@ -309,6 +309,7 @@ body.is-recording .ground {
 .viewer-body { border-radius: 24px; padding: 34px 38px; }
 .viewer-body.transcript { padding: 8px; }
 .viewer-body.editing { padding-top: 78px; }  /* room for Cancel / Save */
+.viewer-body.transcript.has-actions { padding-top: 64px; }  /* room for the Speakers button */
 
 .viewer-card { position: relative; }
 .viewer-actions {
@@ -322,7 +323,8 @@ body.is-recording .ground {
   background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.12);
   transition: background 160ms ease-out, color 160ms ease-out;
 }
-.tool:hover { background: rgba(255, 255, 255, 0.13); color: #fff; }
+.tool:hover:not(:disabled) { background: rgba(255, 255, 255, 0.13); color: #fff; }
+.tool:disabled { cursor: default; opacity: 0.7; }
 .tool:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .tool svg { opacity: 0.85; }
 .tool-primary {
@@ -369,11 +371,20 @@ body.is-recording .ground {
   width: 62px; flex-shrink: 0; padding-top: 3px;
 }
 .line .who {
-  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
-  width: 62px; padding: 3px 10px; border-radius: 7px; font-size: 11.5px; font-weight: 600;
+  display: inline-block; flex-shrink: 0; min-width: 62px; max-width: 128px;
+  padding: 3px 10px; border-radius: 7px; font-size: 11.5px; font-weight: 600; text-align: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.line .who.you  { background: rgba(10,132,255,0.18);  border: 1px solid rgba(10,132,255,0.32);  color: #8AC2FF; }
-.line .who.them { background: rgba(199,156,255,0.16); border: 1px solid rgba(199,156,255,0.30); color: var(--them); }
+/* You is blue; each identified voice gets its own colour, in the Speakers panel's order. */
+.you  { --c: 127,187,255; }
+.them { --c: 176,186,208; }  /* not told apart yet, or no voice matched: neutral grey */
+.s0 { --c: 199,156,255; }
+.s1 { --c: 110,226,150; }
+.s2 { --c: 255,190,110; }
+.s3 { --c: 255,150,200; }
+.s4 { --c: 110,220,230; }
+.s5 { --c: 240,220,110; }
+.line .who { background: rgba(var(--c), 0.15); border: 1px solid rgba(var(--c), 0.32); color: rgb(var(--c)); }
 .line .said {
   font-size: 15px; line-height: 1.55; letter-spacing: -0.003em;
   text-wrap: pretty; color: rgba(255, 255, 255, 0.87);
@@ -396,6 +407,10 @@ body.is-recording .ground {
   background: rgba(255, 69, 58, 0.11); border: 1px solid rgba(255, 69, 58, 0.30);
   color: #FFB0AA;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+.banner.info {
+  align-items: center;
+  background: rgba(10, 132, 255, 0.11); border-color: rgba(10, 132, 255, 0.30); color: #A9CFFF;
 }
 .banner.soft {
   background: rgba(255, 159, 10, 0.11); border-color: rgba(255, 159, 10, 0.30); color: #FFD09B;
@@ -434,9 +449,25 @@ body.is-recording .ground {
 .icon-btn.round { width: 28px; height: 28px; border-radius: 999px; }
 .icon-btn.trash { width: 30px; height: 30px; border-radius: 9px; color: rgba(255, 120, 112, 0.82); }
 
+/* --- speakers sheet --------------------------------------------------- */
+
+.speaker-list { gap: 4px; padding: 14px 16px 18px; }
+.speaker-row { display: flex; align-items: center; gap: 14px; padding: 10px; border-radius: 14px; }
+.speaker-row:hover { background: rgba(255, 255, 255, 0.04); }
+.speaker-row .play {
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  width: 40px; height: 40px; border-radius: 999px; cursor: pointer; color: rgb(var(--c));
+  background: rgba(var(--c), 0.14); border: 1px solid rgba(var(--c), 0.34);
+}
+.speaker-row .play.on { color: #fff; background: rgba(var(--c), 0.55); }
+.speaker-row .play:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.speaker-row .who-text { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.speaker-row input[type="text"] { font-family: inherit; font-size: 15px; padding: 9px 12px; }
+.speaker-row .detail { font-size: 12px; color: var(--ink-3); padding-left: 2px; }
+
 /* --- settings sheet ---------------------------------------------------- */
 
-dialog#settings {
+dialog#settings, dialog#speakers {
   width: 620px; max-width: 92vw; padding: 0; border: 0; border-radius: 26px;
   color: var(--ink); overflow: hidden;
   background: rgba(28, 34, 54, 0.72);
@@ -445,7 +476,7 @@ dialog#settings {
   border: 1px solid rgba(255, 255, 255, 0.16);
   box-shadow: 0 46px 100px rgba(0, 0, 0, 0.68), inset 0 1px 0 rgba(255, 255, 255, 0.26);
 }
-dialog#settings::backdrop { background: rgba(4, 6, 12, 0.52); backdrop-filter: blur(2px); }
+dialog#settings::backdrop, dialog#speakers::backdrop { background: rgba(4, 6, 12, 0.52); backdrop-filter: blur(2px); }
 
 .sheet-head {
   display: flex; align-items: center; gap: 12px; padding: 22px 26px 18px;
@@ -485,7 +516,7 @@ select:focus-visible, input:focus-visible { outline: 2px solid var(--blue); outl
 /* --- accessibility ----------------------------------------------------- */
 
 @media (prefers-reduced-transparency: reduce) {
-  .glass, dialog#settings { backdrop-filter: none; -webkit-backdrop-filter: none; background: #161B2E; }
+  .glass, dialog#settings, dialog#speakers { backdrop-filter: none; -webkit-backdrop-filter: none; background: #161B2E; }
   .grain { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {

@@ -46,9 +46,7 @@ MINUTES_PROMPT = """{content}
 
 You are writing the minutes of the meeting recorded above.
 
-"You" is the person whose microphone recorded it. "Them" is everyone else,
-heard through the computer speakers. Individual remote speakers are not
-distinguished, so never invent names.
+{speakers}
 
 Write Markdown with exactly these sections, in this order:
 
@@ -59,8 +57,8 @@ Three to six sentences on what the meeting was about and what came of it.
 What was actually decided. One bullet each. If nothing was decided, write "None".
 
 ## Action Items
-One bullet each, as "- Owner — task (deadline if stated)". Use "You" or
-"Unassigned" when the owner is unclear. If there are none, write "None".
+One bullet each, as "- Owner — task (deadline if stated)". Use "Unassigned"
+when the owner is unclear. If there are none, write "None".
 
 ## Open Questions
 Anything raised and left unresolved. If there are none, write "None".
@@ -68,6 +66,16 @@ Anything raised and left unresolved. If there are none, write "None".
 Rules: use only what is written above, never guess at anything that was not
 said, do not add sections beyond the four above, and write entirely in English.
 """
+
+TWO_SIDES = """"You" is the person whose microphone recorded it. "Them" is everyone else,
+heard through the computer speakers. Individual remote speakers are not
+distinguished, so never invent names; use "You" or "Them" as owners."""
+
+# Once speakers.py has told the remote voices apart and people have named them.
+NAMED_SPEAKERS = """Each line starts with who spoke: a person's name, "You" for whoever
+recorded the meeting, or "Speaker 1", "Speaker 2" for voices nobody has named.
+Use exactly those labels for who decided what and who owns each action item.
+Never invent names that do not appear in the transcript."""
 
 DIGEST_PROMPT = """{content}
 
@@ -185,7 +193,8 @@ def _ask(prompt: str, model: str, send, max_tokens: int) -> str:
     return out
 
 
-def _reduce(content: str, model: str, send, progress, depth: int) -> str:
+def _reduce(content: str, model: str, send, progress, depth: int,
+            speakers: str = TWO_SIDES) -> str:
     """Digest each segment, then write the minutes from the digests."""
     budget = budget_chars()
     segments = split_transcript(content, int(budget * SEGMENT_FRACTION))
@@ -204,7 +213,7 @@ def _reduce(content: str, model: str, send, progress, depth: int) -> str:
     # Digests of a very long meeting can themselves overflow. Reduce again
     # rather than trim — each pass shrinks the text a lot, so this converges.
     if len(combined) > budget and depth < MAX_DEPTH:
-        return _reduce(combined, model, send, progress, depth + 1)
+        return _reduce(combined, model, send, progress, depth + 1, speakers)
 
     dropped = 0
     if len(combined) > budget:
@@ -215,13 +224,13 @@ def _reduce(content: str, model: str, send, progress, depth: int) -> str:
 
     if progress:
         progress(total, total)
-    minutes = _ask(MINUTES_PROMPT.format(content=combined), model, send,
+    minutes = _ask(MINUTES_PROMPT.format(content=combined, speakers=speakers), model, send,
                    MINUTES_MAX_TOKENS)
     return TRUNCATION_NOTE.format(dropped=dropped) + minutes if dropped else minutes
 
 
 def summarize(transcript: str, model: str | None = None, post=None,
-              progress=None) -> str:
+              progress=None, speakers: str | None = None) -> str:
     """Minutes as Markdown. Raises SummarizeError if Ollama cannot be reached.
 
     `progress(done, total)` is called before each model request, so a long
@@ -233,12 +242,13 @@ def summarize(transcript: str, model: str | None = None, post=None,
         return "## Summary\n\nNo speech was detected in this recording.\n"
 
     model = model or DEFAULT_MODEL
+    speakers = speakers or TWO_SIDES
     send = post or _post
 
     if len(transcript) <= budget_chars():
         if progress:
             progress(1, 1)
-        return _ask(MINUTES_PROMPT.format(content=transcript), model, send,
+        return _ask(MINUTES_PROMPT.format(content=transcript, speakers=speakers), model, send,
                     MINUTES_MAX_TOKENS)
 
-    return _reduce(transcript, model, send, progress, depth=0)
+    return _reduce(transcript, model, send, progress, depth=0, speakers=speakers)

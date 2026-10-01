@@ -26,8 +26,10 @@ if errorlevel 2 goto :eof
 
 git pull --ff-only --quiet || goto :error
 uv sync || goto :error
+rem Installs that predate speaker identification fetch its model here; a no-op after.
+uv run python -m app.speakers --download || goto :error
 echo.
-echo Updated. Start MeetingAI as usual.
+echo Updated. If MeetingAI is open, close its window and start it again.
 pause
 goto :eof
 

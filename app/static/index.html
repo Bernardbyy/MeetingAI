@@ -103,9 +103,11 @@
       </div>
     </div>
     <div id="viewer-banner" class="banner" hidden></div>
+    <div id="viewer-status" class="banner info" hidden></div>
     <div class="viewer-card">
       <!-- Actions sit on the minutes they act on, not in the page header. -->
       <div class="viewer-actions">
+        <button id="speakers-open" class="tool" hidden></button>
         <a id="minutes-export" class="tool" download hidden></a>
         <button id="minutes-edit" class="tool"></button>
         <button id="minutes-cancel" class="tool" hidden>Cancel</button>
@@ -162,6 +164,22 @@
     <span id="s-msg" class="hint"></span>
     <button id="s-cancel" class="btn btn-quiet">Cancel</button>
     <button id="s-save" class="btn btn-primary">Save</button>
+  </div>
+</dialog>
+
+<dialog id="speakers" class="sheet">
+  <form method="dialog" class="sheet-head">
+    <span class="sheet-title">Speakers</span>
+    <button class="icon-btn round" value="cancel" aria-label="Close">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+           stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+    </button>
+  </form>
+  <div id="speakers-list" class="sheet-body speaker-list"></div>
+  <div class="sheet-foot">
+    <span id="speakers-msg" class="hint"></span>
+    <button id="speakers-save" class="btn btn-quiet">Save names</button>
+    <button id="speakers-save-update" class="btn btn-primary">Save &amp; update minutes</button>
   </div>
 </dialog>
 

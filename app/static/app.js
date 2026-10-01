@@ -70,6 +70,10 @@ const ICON = {
   doc: ["M7 3h7l4 4v14H7z", "M14 3v4h4", "M10 12h6", "M10 16h6"],
   pencil: ["M4 20h4L19 9l-4-4L4 16z", "M13.5 6.5l4 4"],
   download: ["M12 4v11", "M7.5 10.5L12 15l4.5-4.5", "M5 20h14"],
+  people: ["M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z", "M2.5 20a6.5 6.5 0 0 1 13 0",
+           "M16 4.3a3.5 3.5 0 0 1 0 6.4", "M18 14.2a6.5 6.5 0 0 1 3.5 5.8"],
+  play: ["M8.5 5.5v13l10-6.5z"],
+  pause: ["M9 5.5v13", "M15 5.5v13"],
 };
 
 // --- pipeline -------------------------------------------------------------
@@ -354,12 +358,17 @@ async function openMeeting(id) {
 
   $("viewer").hidden = false;
   $("history-section").hidden = true;
+  renderSpeakerState();
+  watchMeeting();
   showTab(m.minutes ? "minutes" : "transcript");
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
+let currentTab = "minutes";
+
 function showTab(which) {
   if (!leaveEditing()) return;
+  currentTab = which;
   $("tab-minutes").className = `seg${which === "minutes" ? " on" : ""}`;
   $("tab-transcript").className = `seg${which === "transcript" ? " on" : ""}`;
   $("minutes-edit").hidden = which !== "minutes";
@@ -369,6 +378,7 @@ function showTab(which) {
   const body = $("viewer-body");
   body.innerHTML = "";
   body.className = `glass viewer-body${which === "transcript" ? " transcript" : ""}`;
+  body.classList.toggle("has-actions", !$("speakers-open").hidden);
 
   const text = loaded[which];
   if (!text) {
@@ -403,10 +413,10 @@ function renderMinutes(body, md) {
   }
 }
 
-/** transcript.txt lines look like: [00:01:12] You: text */
+/** transcript.txt lines look like: [00:01:12] Maple: text (You, Them or a name) */
 function renderTranscript(body, text) {
   for (const raw of text.split("\n")) {
-    const m = /^\[(\d\d:\d\d:\d\d)\]\s+(You|Them):\s*(.*)$/.exec(raw);
+    const m = /^\[(\d\d:\d\d:\d\d)\]\s+([^:]+?):\s*(.*)$/.exec(raw);
     if (!m) {
       if (raw.trim()) body.append(el("div", "line", raw));
       continue;
@@ -415,7 +425,7 @@ function renderTranscript(body, text) {
     const line = el("div", "line");
     line.append(
       el("span", "at", at),
-      el("span", `who ${who === "You" ? "you" : "them"}`, who),
+      el("span", `who ${voiceClass(who)}`, who),
       el("span", "said", said),
     );
     body.append(line);
@@ -425,6 +435,7 @@ function renderTranscript(body, text) {
 function closeViewer() {
   if (!leaveEditing()) return;
   viewing = null;
+  watchMeeting();
   $("viewer").hidden = true;
   $("history-section").hidden = false;
 }
@@ -445,6 +456,7 @@ $("minutes-export").append(svg(ICON.download, 15), el("span", null, "Export"));
 
 function setEditing(on) {
   editing = on;
+  $("speakers-open").hidden = on || !speakersApply();
   $("minutes-edit").hidden = on;
   $("minutes-export").hidden = on || !loaded.minutes;  // would export the unsaved version
   $("minutes-cancel").hidden = !on;
@@ -565,6 +577,180 @@ $("s-save").onclick = async (e) => {
     $("s-msg").textContent = err.message;
   }
 };
+
+// --- speakers ---------------------------------------------------------------
+
+// pyannote tells the Them voices apart after the minutes are written; it runs
+// in the background and takes about as long as the meeting did.
+const IDENTIFYING = ["queued", "running"];
+
+/** Colour for a transcript label: You blue, each voice its panel colour. */
+function voiceClass(name) {
+  const rows = (loaded.meta && loaded.meta.speakers) || [];
+  const you = rows.find((r) => r.label === "You");
+  if (name === (you ? you.name : "You")) return "you";
+  const i = rows.filter((r) => r.label !== "You").findIndex((r) => r.name === name);
+  return i >= 0 ? `s${i % 6}` : "them";
+}
+
+/** The Speakers button makes sense once there is a Them side to split. */
+function speakersApply() {
+  const m = loaded.meta || {};
+  return Boolean(m.speakers_state) || /\] Them:/.test(loaded.transcript);
+}
+
+function renderSpeakerState() {
+  const m = loaded.meta || {};
+  const b = $("speakers-open");
+  const busy = IDENTIFYING.includes(m.speakers_state);
+  b.hidden = editing || !speakersApply();
+  b.disabled = busy;
+  b.title = busy
+    ? "Working out who said what, in the background. The minutes are already done; this takes about as long as the meeting."
+    : m.speakers_state === "failed" ? `Last try failed: ${m.speakers_error || "unknown error"}` : "";
+  const icon = svg(busy ? ICON.spinner : ICON.people, 15);
+  if (busy) icon.classList.add("spin");
+  const label = busy ? "Identifying speakers…"
+    : m.speakers_state === "done" ? "Speakers" : "Identify speakers";
+  b.replaceChildren(icon, el("span", null, label));
+
+  const updating = m.minutes_state === "updating";
+  $("minutes-edit").disabled = updating;
+  const status = $("viewer-status");
+  status.hidden = !(updating || m.minutes_state === "failed");
+  status.className = `banner ${updating ? "info" : "soft"}`;
+  status.textContent = updating
+    ? "Updating the minutes with the speakers' names. You can keep using the app meanwhile."
+    : m.minutes_state === "failed" ? `Could not update the minutes: ${m.minutes_error || "unknown error"}` : "";
+}
+
+// While something runs in the background for the open meeting, check on it.
+let pollTimer = null;
+
+function watchMeeting() {
+  const m = loaded.meta || {};
+  const busy = viewing && (IDENTIFYING.includes(m.speakers_state) || m.minutes_state === "updating");
+  if (busy && !pollTimer) pollTimer = setInterval(pollMeeting, 4000);
+  if (!busy && pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+async function pollMeeting() {
+  const id = viewing;
+  let m;
+  try {
+    m = await api(`/api/meetings/${id}`);
+  } catch {
+    return;
+  }
+  if (id !== viewing) return;
+  const before = loaded.meta || {};
+  loaded.meta = m;
+  if (!editing) {
+    loaded.transcript = m.transcript || "";
+    loaded.minutes = m.minutes || "";
+    if (before.speakers_state !== m.speakers_state || before.minutes_state !== m.minutes_state) {
+      showTab(currentTab);
+    }
+  }
+  renderSpeakerState();
+  watchMeeting();
+}
+
+$("speakers-open").onclick = async () => {
+  if (loaded.meta.speakers_state === "done") return openSpeakers();
+  try {
+    loaded.meta = await postJSON(`/api/meetings/${viewing}/speakers/identify`, {});
+  } catch (e) {
+    return showWarn(e.message);
+  }
+  renderSpeakerState();
+  watchMeeting();
+};
+
+let playing = null;  // the one sample playing: { audio, button }
+
+function stopPlaying() {
+  if (!playing) return;
+  playing.audio.pause();
+  playing.button.classList.remove("on");
+  playing.button.replaceChildren(svg(ICON.play, 16));
+  playing = null;
+}
+
+function openSpeakers() {
+  const list = $("speakers-list");
+  list.innerHTML = "";
+  let n = 0;
+  for (const r of loaded.meta.speakers) {
+    const colour = r.label === "You" ? "you" : `s${n++ % 6}`;
+    const row = el("div", `speaker-row ${colour}`);
+
+    const play = el("button", "play");
+    play.type = "button";
+    play.setAttribute("aria-label", `Play a sample of ${r.label}`);
+    play.append(svg(ICON.play, 16));
+    play.onclick = () => {
+      const again = playing && playing.button === play;
+      stopPlaying();
+      if (again) return;
+      const audio = new Audio(`/api/meetings/${viewing}/speakers/${encodeURIComponent(r.label)}/sample`);
+      audio.onended = stopPlaying;
+      audio.play().catch(() => { $("speakers-msg").textContent = "Could not play that sample."; stopPlaying(); });
+      playing = { audio, button: play };
+      play.classList.add("on");
+      play.replaceChildren(svg(ICON.pause, 16));
+    };
+
+    const input = el("input");
+    input.type = "text";
+    input.maxLength = 60;
+    input.placeholder = r.label;
+    input.value = r.name === r.label ? "" : r.name;
+    input.dataset.label = r.label;
+    input.setAttribute("aria-label", `Name for ${r.label}`);
+
+    const lines = `${r.lines} line${r.lines === 1 ? "" : "s"}`;
+    const text = el("div", "who-text");
+    text.append(input, el("span", "detail", `${r.label} · ${lines} · ${mmss(r.seconds)}`));
+    row.append(play, text);
+    list.append(row);
+  }
+  $("speakers-msg").textContent = "Play each voice, then type who it is.";
+  $("speakers").showModal();
+}
+
+$("speakers").onclose = stopPlaying;
+
+async function saveSpeakers(update) {
+  const names = {};
+  for (const input of $("speakers-list").querySelectorAll("input")) {
+    names[input.dataset.label] = input.value.trim();
+  }
+  if (update && loaded.meta.minutes_edited_at
+      && !confirm("Updating the minutes replaces the edits you made to them. Continue?")) return;
+  let m;
+  try {
+    m = await api(`/api/meetings/${viewing}/speakers`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ names }),
+    });
+    if (update) m = await postJSON(`/api/meetings/${viewing}/minutes/update`, {});
+  } catch (e) {
+    $("speakers-msg").textContent = e.message;
+    return;
+  }
+  $("speakers").close();
+  loaded.meta = m;
+  loaded.transcript = m.transcript || "";
+  loaded.minutes = m.minutes || "";
+  renderSpeakerState();
+  showTab(currentTab);
+  watchMeeting();
+}
+
+$("speakers-save").onclick = () => saveSpeakers(false);
+$("speakers-save-update").onclick = () => saveSpeakers(true);
 
 // --- go -------------------------------------------------------------------
 
