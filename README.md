@@ -10,7 +10,9 @@ Each meeting is a plain folder under `meetings/` with `audio.mp3`,
 
 ## Setup
 
-Windows only. Paste this into PowerShell:
+You need Windows 10 or 11, about 9GB of free disk space, and internet during
+setup (afterwards MeetingAI runs offline). Windows may ask once for permission
+to install Git. Paste this into PowerShell:
 
 ```powershell
 irm https://raw.githubusercontent.com/Bernardbyy/MeetingAI/main/Batch/install.bat -OutFile $env:TEMP\meetingai-install.bat; & $env:TEMP\meetingai-install.bat
@@ -25,9 +27,20 @@ After that, find **MeetingAI** in the Start menu.
 
 ## Updates
 
-Run `Batch\update.bat`. It lists what changed and asks before installing anything.
-Starting the app never updates on its own, and updates never touch your
-meetings or settings.
+Close MeetingAI, then run `Batch\update.bat`. It lists what changed and asks
+before installing anything. Starting the app never updates on its own, and
+updates never touch your meetings or settings.
+
+## If something goes wrong
+
+| What you see | What to do |
+|---|---|
+| Setup stops partway | Fix what it says and run the setup line again; finished steps are skipped. |
+| "winget not found" | Update **App Installer** from the Microsoft Store. |
+| No minutes: "Could not reach Ollama" | Start **Ollama** from the Start menu, then record again. |
+| "Speakers" says identification failed | Run `Batch\update.bat`; it fetches anything missing. |
+| The page says "can't reach this page" | Wait a few seconds and refresh; the app may still be starting. |
+| Buttons do nothing after an update | Close MeetingAI, start it again, then press Ctrl+F5 in the browser. |
 
 ## Settings
 

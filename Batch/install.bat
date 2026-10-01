@@ -11,11 +11,23 @@ set WG=winget install -e --silent --accept-package-agreements --accept-source-ag
 
 where winget >nul 2>&1 || (echo winget not found. Update "App Installer" from the Microsoft Store. & goto :error)
 
+rem A first install needs about 9GB; say so now rather than fail halfway.
+if not exist "%DIR%" (
+    for /f %%g in ('powershell -NoProfile -Command "[math]::Floor((Get-PSDrive $env:USERPROFILE[0]).Free / 1GB)"') do set FREEGB=%%g
+)
+if defined FREEGB if %FREEGB% LSS 10 (
+    echo Only %FREEGB%GB free on this drive; MeetingAI needs about 9GB. Free some space first.
+    goto :error
+)
+
 echo [1/6] Installing tools, skipping any already installed...
 where git    >nul 2>&1 || %WG% Git.Git
 where uv     >nul 2>&1 || %WG% astral-sh.uv
 where ffmpeg >nul 2>&1 || %WG% Gyan.FFmpeg
 where ollama >nul 2>&1 || %WG% Ollama.Ollama
+rem An Ollama installed long ago cannot run the model or switch thinking off.
+rem Quietly bring it up to date; nothing happens if it already is.
+winget upgrade -e --silent --accept-package-agreements --accept-source-agreements --id Ollama.Ollama >nul 2>&1
 rem New installs are not on this window's PATH yet; reread it from the registry.
 call :refresh_path
 for %%t in (git uv ffmpeg ollama) do where %%t >nul 2>&1 || (echo %%t did not install. & goto :error)
