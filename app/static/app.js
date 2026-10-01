@@ -167,6 +167,7 @@ async function refreshStatus() {
   $("record").className = `orb ${recording ? "orb-live" : "orb-idle"}`;
   $("record").title = recording ? "Stop recording" : "Start recording";
   $("settings-open").disabled = recording || busy;
+  $("quit").disabled = recording || busy;
 
   const DECK = {
     recording: ["Recording", "Both sides are captured separately, so the minutes can tell you apart from everyone else."],
@@ -552,6 +553,12 @@ $("settings-open").onclick = async () => {
   fill($("s-loop"), devices(d.devices.loopbacks || []), s.loopback_index ?? "");
 
   $("s-dir").value = s.meetings_dir;
+
+  const v = d.version || {};
+  $("u-version").textContent = v.commit ? `Version ${v.commit} · ${v.date}` : "Version unknown";
+  $("u-result").hidden = true;
+  $("u-apply").hidden = true;
+  $("u-check").disabled = false;
   $("s-msg").textContent = d.devices.error || "";
   $("settings").showModal();
 };
@@ -752,8 +759,116 @@ async function saveSpeakers(update) {
 $("speakers-save").onclick = () => saveSpeakers(false);
 $("speakers-save-update").onclick = () => saveSpeakers(true);
 
+// --- updates ----------------------------------------------------------------
+
+// Settings -> Updates. Checking asks GitHub what is new; updating closes the
+// app, updates it in its own window and starts it again, and this page waits
+// for the new version and reloads itself.
+
+$("u-check").onclick = async () => {
+  const out = $("u-result");
+  $("u-check").disabled = true;
+  $("u-apply").hidden = true;
+  out.hidden = false;
+  out.textContent = "Checking…";
+  let r;
+  try {
+    r = await api("/api/updates");
+  } catch (e) {
+    out.textContent = e.message;
+    $("u-check").disabled = false;
+    return;
+  }
+  $("u-check").disabled = false;
+  if (!r.changes.length) {
+    out.textContent = "You're up to date.";
+    return;
+  }
+  out.textContent = `${r.changes.length} update${r.changes.length === 1 ? "" : "s"} available:`;
+  const list = el("ul", "update-list");
+  for (const c of r.changes.slice(0, 8)) list.append(el("li", null, c.subject));
+  if (r.changes.length > 8) list.append(el("li", null, `and ${r.changes.length - 8} more`));
+  out.append(list);
+  if (r.local_edits) {
+    out.append(el("p", null, "This copy has edited files, so it can't update itself."));
+    return;
+  }
+  $("u-apply").hidden = false;
+};
+
+$("u-apply").onclick = async () => {
+  $("u-apply").disabled = true;
+  try {
+    await postJSON("/api/updates/apply", {});
+  } catch (e) {
+    $("u-result").textContent = e.message;
+    $("u-apply").disabled = false;
+    return;
+  }
+  $("settings").close();
+  waitForNewVersion();
+};
+
+/** Wait for the app to go down and come back, then reload into the new version. */
+async function waitForNewVersion() {
+  const banner = $("updating");
+  banner.hidden = false;
+  banner.replaceChildren(svg(ICON.spinner, 16), el("span", null,
+    "Updating MeetingAI. A window shows the progress; this page reloads by itself when it's done."));
+  banner.firstChild.classList.add("spin");
+  const started = Date.now();
+  let wentDown = false;
+  for (;;) {
+    await new Promise((ok) => setTimeout(ok, 2000));
+    let up = false;
+    try {
+      up = (await fetch("/api/status", { cache: "no-store" })).ok;
+    } catch {
+      up = false;
+    }
+    if (!up) wentDown = true;
+    if (up && wentDown) return location.reload();
+    if (Date.now() - started > 20 * 60 * 1000) {
+      banner.replaceChildren(el("span", null,
+        "The update is taking longer than expected. Check the Updating MeetingAI window."));
+      return;
+    }
+  }
+}
+
+// --- quit -------------------------------------------------------------------
+
+$("quit").onclick = async () => {
+  if (!confirm("Quit MeetingAI?")) return;
+  const quit = (force) => postJSON("/api/quit", { force });
+  try {
+    await quit(false);
+  } catch (e) {
+    if (e.message !== "busy") return showWarn(e.message);
+    if (!confirm("Speakers or minutes are still being worked out. Quit anyway? "
+                 + "Speaker identification carries on the next time you start MeetingAI.")) return;
+    try {
+      await quit(true);
+    } catch (e2) {
+      return showWarn(e2.message);
+    }
+  }
+  closedScreen();
+};
+
+/** What the tab shows once the app has stopped: nothing on it works any more. */
+function closedScreen() {
+  clearInterval(statusTimer);
+  const shell = document.querySelector("main.shell");
+  shell.replaceChildren();
+  const note = el("section", "glass deck closed");
+  note.append(el("div", "deck-title", "MeetingAI is closed"),
+              el("div", "deck-note", "Start it again from the Start menu. You can close this tab."));
+  shell.append(note);
+}
+
 // --- go -------------------------------------------------------------------
 
-setInterval(refreshStatus, 1000);
+const statusTimer = setInterval(refreshStatus, 1000);
 refreshStatus();
 refreshHistory();

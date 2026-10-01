@@ -3,14 +3,16 @@
 Phase 3: capture and transcription run together; Stop only waits for the tail.
 """
 
+import os
+import threading
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import audio, export, session, settings, speakers, storage, summarize, transcribe
+from . import audio, export, session, settings, speakers, storage, summarize, transcribe, updates
 
 STATIC = Path(__file__).parent / "static"
 
@@ -141,6 +143,7 @@ def get_settings():
         "whisper_downloaded": transcribe.downloaded_models(settings.WHISPER_MODELS),
         "llm_models": summarize.list_models(),
         "devices": devices,
+        "version": updates.current(),
     }
 
 
@@ -152,6 +155,45 @@ def post_settings(patch: dict):
         return settings.save(patch)
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+@app.post("/api/quit")
+def quit_app(body: dict | None = None):
+    """Close MeetingAI from the page instead of its console window."""
+    if CURRENT is not None:
+        raise HTTPException(409, "stop the recording and wait for the minutes first")
+    if speakers.busy() and not (body or {}).get("force"):
+        raise HTTPException(409, "busy")
+    speakers.stop_child()  # its job resumes on the next start
+    threading.Timer(0.5, os._exit, [0]).start()
+    return {"quitting": True}
+
+
+@app.get("/api/updates")
+def check_updates():
+    try:
+        return updates.check()
+    except updates.UpdateError as e:
+        raise HTTPException(502, str(e))
+
+
+@app.post("/api/updates/apply")
+def apply_update(request: Request):
+    if CURRENT is not None:
+        raise HTTPException(409, "finish the recording first")
+    if speakers.busy():
+        raise HTTPException(409, "speakers or minutes are still being worked out; "
+                                 "update when that finishes")
+    try:
+        info = updates.check()
+    except updates.UpdateError as e:
+        raise HTTPException(502, str(e))
+    if not info["changes"]:
+        raise HTTPException(409, "already up to date")
+    if info["local_edits"]:
+        raise HTTPException(409, "this copy has edited files, so it cannot update itself")
+    updates.apply(request.url.port or 8756)
+    return {"updating": True, "changes": info["changes"]}
 
 
 @app.get("/api/meetings")

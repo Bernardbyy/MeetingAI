@@ -34,6 +34,12 @@
       </svg>
       <span id="badge-text">Stays on this machine</span>
     </div>
+    <button id="quit" class="icon-btn" title="Quit MeetingAI" aria-label="Quit MeetingAI">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v9"></path><path d="M6.3 6.8a8 8 0 1 0 11.4 0"></path>
+      </svg>
+    </button>
   </header>
 
   <!-- idle / recording -->
@@ -76,6 +82,7 @@
   </section>
 
   <p id="warn" class="warn" hidden></p>
+  <div id="updating" class="banner info" hidden></div>
 
   <!-- history -->
   <section id="history-section">
@@ -157,6 +164,18 @@
     <div class="field">
       <label for="s-dir">Meetings folder</label>
       <input type="text" id="s-dir" spellcheck="false">
+    </div>
+
+    <div class="rule"></div>
+
+    <div class="field">
+      <label>Updates</label>
+      <div class="update-row">
+        <span id="u-version" class="hint"></span>
+        <button id="u-check" class="btn btn-quiet" type="button">Check for updates</button>
+      </div>
+      <div id="u-result" class="hint" hidden></div>
+      <button id="u-apply" class="btn btn-primary u-apply" type="button" hidden>Update and restart</button>
     </div>
   </div>
 

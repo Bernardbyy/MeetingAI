@@ -19,7 +19,7 @@ powershell -NoProfile -Command "$s=(New-Object -ComObject WScript.Shell).CreateS
 
 rem Open the browser once the app answers, not after a fixed wait: a slow first
 rem start would otherwise land on "can't reach this page". Gives up after 60 s.
-start "" /b powershell -NoProfile -Command "for ($i = 0; $i -lt 60; $i++) { try { Invoke-WebRequest -UseBasicParsing -TimeoutSec 1 http://127.0.0.1:8756/api/status | Out-Null; Start-Process http://127.0.0.1:8756; break } catch { Start-Sleep 1 } }"
+if not defined MEETINGAI_NO_BROWSER start "" /b powershell -NoProfile -Command "for ($i = 0; $i -lt 60; $i++) { try { Invoke-WebRequest -UseBasicParsing -TimeoutSec 1 http://127.0.0.1:8756/api/status | Out-Null; Start-Process http://127.0.0.1:8756; break } catch { Start-Sleep 1 } }"
 
 uv run uvicorn app.main:app --port 8756
 goto :eof

@@ -225,17 +225,41 @@ def speaker_note(meeting_id: str) -> str | None:
 
 _jobs: queue.Queue = queue.Queue()
 _worker: threading.Thread | None = None
+_active: set[str] = set()  # meetings with a speaker job or minutes update running
+_child: subprocess.Popen | None = None  # the pyannote process, while one runs
+_quitting = False  # set by stop_child: a killed job is unfinished, not failed
+
+
+def busy() -> bool:
+    """Background work in progress or waiting; updating now would cut it off."""
+    return bool(_active) or not _jobs.empty()
 
 
 def _run(meeting_id: str) -> None:
+    _active.add(meeting_id)
+    try:
+        _identify(meeting_id)
+    finally:
+        _active.discard(meeting_id)
+
+
+def _identify(meeting_id: str) -> None:
     d = storage.meeting_dir(meeting_id)
     storage.update_meta(meeting_id, speakers_state="running", speakers_error=None)
     flags = getattr(subprocess, "BELOW_NORMAL_PRIORITY_CLASS", 0)  # Windows only
-    r = subprocess.run([sys.executable, "-m", "app.speakers", str(d.resolve())],
-                       env={**os.environ, **OFFLINE_ENV}, capture_output=True, text=True,
-                       creationflags=flags, cwd=Path(__file__).parent.parent)
-    if r.returncode != 0:
-        why = (r.stderr.strip().splitlines() or ["unknown error"])[-1]
+    global _child
+    _child = subprocess.Popen([sys.executable, "-m", "app.speakers", str(d.resolve())],
+                              env={**os.environ, **OFFLINE_ENV}, stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE, text=True, creationflags=flags,
+                              cwd=Path(__file__).parent.parent)
+    _, err = _child.communicate()
+    code, _child = _child.returncode, None
+    if code != 0 and _quitting:
+        # Stopped by Quit: leave it queued so resume() picks it up next start.
+        storage.update_meta(meeting_id, speakers_state="queued")
+        return
+    if code != 0:
+        why = (err.strip().splitlines() or ["unknown error"])[-1]
         storage.update_meta(meeting_id, speakers_state="failed", speakers_error=why[:300])
         return
     apply(meeting_id)
@@ -252,6 +276,17 @@ def _loop() -> None:
                 storage.update_meta(meeting_id, speakers_state="failed", speakers_error=str(e)[:300])
             except Exception:
                 pass
+
+
+def stop_child() -> None:
+    """Stop a running pyannote process. Windows does not end child processes
+    with the app, so without this it would carry on unseen after Quit, then
+    run again when the job resumes on the next start."""
+    global _quitting
+    _quitting = True
+    child = _child
+    if child is not None:
+        child.kill()
 
 
 def enqueue(meeting_id: str) -> None:
@@ -276,6 +311,7 @@ def resume() -> None:
 def update_minutes(meeting_id: str, model: str) -> None:
     """Write the minutes again from the named transcript, in the background."""
     storage.update_meta(meeting_id, minutes_state="updating", minutes_error=None)
+    _active.add(f"minutes:{meeting_id}")
 
     def work():
         d = storage.meeting_dir(meeting_id)
@@ -288,6 +324,8 @@ def update_minutes(meeting_id: str, model: str) -> None:
                                 minutes_model=model)
         except Exception as e:
             storage.update_meta(meeting_id, minutes_state="failed", minutes_error=str(e)[:300])
+        finally:
+            _active.discard(f"minutes:{meeting_id}")
 
     threading.Thread(target=work, name="minutes", daemon=True).start()
 

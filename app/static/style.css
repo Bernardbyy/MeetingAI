@@ -446,8 +446,18 @@ body.is-recording .ground {
 }
 .icon-btn:hover { background: rgba(255, 255, 255, 0.14); }
 .icon-btn:active { transform: scale(0.97); }
+.icon-btn:disabled { opacity: 0.4; cursor: default; transform: none; }
+#quit { margin-left: 4px; }
 .icon-btn.round { width: 28px; height: 28px; border-radius: 999px; }
 .icon-btn.trash { width: 30px; height: 30px; border-radius: 9px; color: rgba(255, 120, 112, 0.82); }
+
+/* --- updates (settings) ------------------------------------------------- */
+
+.update-row { display: flex; align-items: center; gap: 12px; }
+.update-row .hint { flex: 1; }
+.update-list { margin: 8px 0 0; padding-left: 18px; color: var(--ink-2); }
+.update-list li { margin: 3px 0; }
+.u-apply { align-self: flex-start; }
 
 /* --- speakers sheet --------------------------------------------------- */
 
