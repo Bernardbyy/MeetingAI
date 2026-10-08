@@ -14,6 +14,13 @@ import os
 import wave
 from pathlib import Path
 
+# Hugging Face's cache stores model files as symlinks, which ordinary Windows
+# accounts may not create. Its own support check is meant to fall back to
+# copies, but it can race its parallel downloads: on a colleague's laptop the
+# Whisper download died with "WinError 1314: A required privilege is not held".
+# Plain copies always work. Must be set before huggingface_hub is imported.
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS", "1")
+
 DEFAULT_MODEL = os.environ.get("MEETINGAI_WHISPER_MODEL", "small")
 
 # Capture label -> how it reads in the transcript.
