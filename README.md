@@ -8,6 +8,8 @@ inference on 16GB of RAM.
 Each meeting is a plain folder under `meetings/` with `audio.mp3`,
 `transcript.txt` and `minutes.md`. Delete the folder and the meeting is gone.
 
+[▶ Watch the promo video (30 s)](docs/MeetingAIPromo.mp4)
+
 ## Setup
 
 You need Windows 10 or 11, about 9GB of free disk space, and internet during
