@@ -8,11 +8,7 @@ inference on 16GB of RAM.
 Each meeting is a plain folder under `meetings/` with `audio.mp3`,
 `transcript.txt` and `minutes.md`. Delete the folder and the meeting is gone.
 
-[▶ Watch the promo video (30 s)](
-
-https://github.com/user-attachments/assets/22d4c1bf-cf22-4970-b90e-4d23456f6b26
-
-)
+[▶ Watch the promo video (30 s)](https://github.com/user-attachments/assets/22d4c1bf-cf22-4970-b90e-4d23456f6b26)
 
 ## Setup
 
